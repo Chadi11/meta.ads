@@ -1,6 +1,6 @@
 # Meta Ad Library Scraper (Facebook & Instagram Ads)
 
-Extract ads from Meta Ad Library (Facebook, Instagram, Messenger, and Audience Network) by keyword or Facebook Page URLs with direct MP4 video download links, high-res images, and advertiser insights at ultra-low cost ($0.20–$0.75 per 1,000 ads).
+Extract ads from Meta Ad Library (Facebook, Instagram, Messenger, and Audience Network) by keyword or Facebook Page URLs with direct MP4 video download links, high-res images, and advertiser insights at ultra-low cost.
 
 ---
 
@@ -105,9 +105,9 @@ for item in client.dataset(run["defaultDatasetId"]).iterate_items():
 
 ## 💰 Compute Cost & Economics
 
-- **Average cost**: ~$0.20 to $0.75 per 1,000 scraped ads.
+- **Average cost**: 
 - Uses **~128 MB RAM** per run.
-- With Apify Free & Starter tier ($5–$49/mo), you can extract between **25,000 and 250,000 ads per month**.
+- With Apify Free & Starter tier ($5–$49/mo), you can extract between 
 
 ---
 
