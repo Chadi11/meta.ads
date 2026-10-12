@@ -1,0 +1,20 @@
+{
+  "name": "meta-ad-library-scraper",
+  "version": "1.0.0",
+  "description": "High-performance Meta Ad Library scraper Apify Actor using direct HTTP and residential proxy rotation",
+  "main": "dist/main.js",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "apify": "^3.2.6",
+    "crawlee": "^3.12.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.0"
+  }
+}
