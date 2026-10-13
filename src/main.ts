@@ -280,7 +280,8 @@ try {
     let forwardCursor: string | null = null;
     let hasNextPage = true;
     let pageNumber = 1;
-    const sessionId = session-${Math.random().toString(36).substring(2, 10)};
+
+  const sessionId = session-${Math.random().toString(36).substring(2, 10)};
 while (hasNextPage && totalScraped < limit) {
 const proxySessionId = res_meta_${Math.random().toString(36).substring(2, 9)};
 const proxyUrl = proxyConfiguration ? await proxyConfiguration.newUrl(proxySessionId) : undefined;
