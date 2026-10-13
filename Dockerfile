@@ -1,9 +1,9 @@
-FROM apify/actor-node:20
+FROM apify/actor-node-playwright:20
 
 # Copy dependency manifests
 COPY package*.json ./
 
-# Install ALL dependencies including production compiler tools
+# Install dependencies including Playwright and Crawlee
 RUN npm --quiet set progress=false \
  && npm install --no-optional
 
