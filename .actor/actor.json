@@ -8,5 +8,5 @@
   "environmentVariables": {},
   "dockerfile": "./Dockerfile",
   "readme": "./README.md",
-  "input": "input_schema.json"
+  "input": "./.actor/input_schema.json"
 }
