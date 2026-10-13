@@ -1,4 +1,4 @@
-/**
+**
  * Meta Ad Library Scraper - Apify Actor Entry Point
  * 
  * High-performance, low-cost HTTP scraper utilizing Crawlee and the Apify SDK.
@@ -281,108 +281,121 @@ try {
     let hasNextPage = true;
     let pageNumber = 1;
 
-  const sessionId = session-${Math.random().toString(36).substring(2, 10)};
-while (hasNextPage && totalScraped < limit) {
-const proxySessionId = res_meta_${Math.random().toString(36).substring(2, 9)};
-const proxyUrl = proxyConfiguration ? await proxyConfiguration.newUrl(proxySessionId) : undefined;
-const userAgent = getRandomUserAgent();
-const headers = getMetaRequestHeaders(userAgent, lsdToken);
-const remainingLimit = limit - totalScraped;
-const batchSize = Math.min(30, remainingLimit);
-const params = new URLSearchParams();
-params.append('active_status', isActive.toLowerCase());
-params.append('ad_type', adType);
-params.append('countries[0]', countryCode);
-params.append('count', String(batchSize));
-params.append('session_id', sessionId);
-params.append('lsd', lsdToken);
-if (target.mode === 'keyword') {
-params.append('q', target.query);
-params.append('search_type', 'keyword_unordered');
-} else {
-params.append('view_all_page_id', target.query);
-params.append('search_type', 'page');
-}
-if (forwardCursor) {
-params.append('forward_cursor', forwardCursor);
-}
-log.info(📡 Dispatching request batch #${pageNumber} for "${target.query}" (Target batch size: ${batchSize})...);
-let response;
-let retries = 3;
-while (retries > 0) {
-try {
-response = await gotScraping({
-url: 'facebook.com',
-method: 'POST',
-body: params.toString(),
-headers,
-proxyUrl,
-timeout: { request: 30000 },
-retry: { limit: 0 },
-});
-if (response.statusCode === 200) {
-break;
-} else if (response.statusCode === 429) {
-log.warning('Rate limited by Meta (HTTP 429). Rotating residential session...');
-await new Promise((res) => setTimeout(res, 3000));
-} else {
-log.warning(Meta responded with HTTP ${response.statusCode}. Retrying...);
-}
-} catch (fetchErr) {
-log.warning(Connection dropped: ${(fetchErr as Error).message}. Retrying...);
-}
-retries--;
-await new Promise((res) => setTimeout(res, 2000));
-}
-if (!response || response.statusCode !== 200) {
-log.error('Failed to retrieve batch from Meta after multiple retries. Ending loop.');
-break;
-}
-let parsed;
-try {
-parsed = parseMetaResponse(response.body);
-} catch (err) {
-log.error(Parse failure: ${(err as Error).message});
-break;
-}
-const results = parsed?.payload?.results;
-if (!Array.isArray(results) || results.length === 0) {
-log.info(No further ad results found for query "${target.query}");
-break;
-}
-const extractedBatch: ScrapedMetaAd[] = [];
-for (const itemGroup of results) {
-const items = Array.isArray(itemGroup) ? itemGroup : [itemGroup];
-for (const rawAd of items) {
-if (!rawAd) continue;
-const ad = extractAdRecord(rawAd);
-if (!pushedAdIds.has(ad.adArchiveID)) {
-pushedAdIds.add(ad.adArchiveID);
-extractedBatch.push(ad);
-totalScraped++;
-if (totalScraped >= limit) break;
-}
-}
-if (totalScraped >= limit) break;
-}
-if (extractedBatch.length > 0) {
-await Actor.pushData(extractedBatch);
-log.info(✅ Pushed ${extractedBatch.length} ads to Apify Dataset (Total: ${totalScraped}/${limit}).);
-}
-const forwardCursorNext = parsed?.payload?.forward_cursor || parsed?.payload?.next_cursor;
-if (forwardCursorNext && forwardCursorNext !== forwardCursor && totalScraped < limit) {
-forwardCursor = forwardCursorNext;
-pageNumber++;
-await new Promise((res) => setTimeout(res, 1000));
-} else {
-hasNextPage = false;
-}
-}
-}
-log.info(🎉 Scraping finished! Successfully collected ${totalScraped} ads into the Apify Dataset.);
+     const sessionId = `session-${Math.random().toString(36).substring(2, 10)}`;
+
+    while (hasNextPage && totalScraped < limit) {
+      const proxySessionId = `res_meta_${Math.random().toString(36).substring(2, 9)}`;
+      const proxyUrl = proxyConfiguration ? await proxyConfiguration.newUrl(proxySessionId) : undefined;
+      const userAgent = getRandomUserAgent();
+      const headers = getMetaRequestHeaders(userAgent, lsdToken);
+      const remainingLimit = limit - totalScraped;
+      const batchSize = Math.min(30, remainingLimit);
+
+      const params = new URLSearchParams();
+      params.append('active_status', isActive.toLowerCase());
+      params.append('ad_type', adType);
+      params.append('countries[0]', countryCode);
+      params.append('count', String(batchSize));
+      params.append('session_id', sessionId);
+      params.append('lsd', lsdToken);
+
+      if (target.mode === 'keyword') {
+        params.append('q', target.query);
+        params.append('search_type', 'keyword_unordered');
+      } else {
+        params.append('view_all_page_id', target.query);
+        params.append('search_type', 'page');
+      }
+
+      if (forwardCursor) {
+        params.append('forward_cursor', forwardCursor);
+      }
+
+      log.info(`📡 Dispatching request batch #${pageNumber} for "${target.query}" (Target batch size: ${batchSize})...`);
+      
+      let response;
+      let retries = 3;
+      while (retries > 0) {
+        try {
+          response = await gotScraping({
+            url: 'https://facebook.com',
+            method: 'POST',
+            body: params.toString(),
+            headers,
+            proxyUrl,
+            timeout: { request: 30000 },
+            retry: { limit: 0 },
+          });
+
+          if (response.statusCode === 200) {
+            break;
+          } else if (response.statusCode === 429) {
+            log.warning('Rate limited by Meta (HTTP 429). Rotating residential session...');
+            await new Promise((res) => setTimeout(res, 3000));
+          } else {
+            log.warning(`Meta responded with HTTP ${response.statusCode}. Retrying...`);
+          }
+        } catch (fetchErr) {
+          log.warning(`Connection dropped: ${(fetchErr as Error).message}. Retrying...`);
+        }
+        retries--;
+        await new Promise((res) => setTimeout(res, 2000));
+      }
+
+      if (!response || response.statusCode !== 200) {
+        log.error('Failed to retrieve batch from Meta after multiple retries. Ending loop.');
+        break;
+      }
+
+      let parsed;
+      try {
+        parsed = parseMetaResponse(response.body);
+      } catch (err) {
+        log.error(`Parse failure: ${(err as Error).message}`);
+        break;
+      }
+
+      const results = parsed?.payload?.results;
+      if (!Array.isArray(results) || results.length === 0) {
+        log.info(`No further ad results found for query "${target.query}"`);
+        break;
+      }
+
+      const extractedBatch: ScrapedMetaAd[] = [];
+      for (const itemGroup of results) {
+        const items = Array.isArray(itemGroup) ? itemGroup : [itemGroup];
+        for (const rawAd of items) {
+          if (!rawAd) continue;
+          const ad = extractAdRecord(rawAd);
+          if (!pushedAdIds.has(ad.adArchiveID)) {
+            pushedAdIds.add(ad.adArchiveID);
+            extractedBatch.push(ad);
+            totalScraped++;
+            if (totalScraped >= limit) break;
+          }
+        }
+        if (totalScraped >= limit) break;
+      }
+
+      if (extractedBatch.length > 0) {
+        await Actor.pushData(extractedBatch);
+        log.info(`✅ Pushed ${extractedBatch.length} ads to Apify Dataset (Total: ${totalScraped}/${limit}).`);
+      }
+
+      const forwardCursorNext = parsed?.payload?.forward_cursor || parsed?.payload?.next_cursor;
+      if (forwardCursorNext && forwardCursorNext !== forwardCursor && totalScraped < limit) {
+        forwardCursor = forwardCursorNext;
+        pageNumber++;
+        await new Promise((res) => setTimeout(res, 1000));
+      } else {
+        hasNextPage = false;
+      }
+    }
+  }
+  log.info(`🎉 Scraping finished! Successfully collected ${totalScraped} ads into the Apify Dataset.`);
 } catch (error) {
-log.error(Fatal error in Meta Ad Library Scraper: ${(error as Error).message});
-throw error;
+  log.error(`Fatal error in Meta Ad Library Scraper: ${(error as Error).message}`);
+  throw error;
 } finally {
-await Actor.exit();
+  await Actor.exit();
 }
