@@ -6,9 +6,9 @@
     "search_keyword": {
       "title": "Search Keyword",
       "type": "string",
-      "description": "Keywords to search in Meta Ad Library (e.g. 'running shoes', 'ai automation', or brand names).",
+      "description": "Keywords to search in Meta Ad Library (e.g. 'AI UGC', 'Shopify dropshipping', or brand names).",
       "editor": "textfield",
-      "prefill": "running shoes"
+      "prefill": "AI UGC"
     },
     "page_urls": {
       "title": "Facebook Page URLs or IDs",
@@ -70,12 +70,17 @@
     "proxyConfiguration": {
       "title": "Proxy Configuration",
       "type": "object",
-      "description": "Residential proxies are strongly recommended to bypass Meta's aggressive rate limiting and CAPTCHAs.",
+      "description": "Apify Proxy configuration. By default uses standard Apify Proxy. You can select RESIDENTIAL group if your plan supports it.",
       "editor": "proxy",
       "default": {
-        "useApifyProxy": true,
-        "apifyProxyGroups": ["RESIDENTIAL"]
+        "useApifyProxy": true
       }
+    },
+    "access_token": {
+      "title": "Meta Graph API Access Token (Optional)",
+      "type": "string",
+      "description": "Optional official Meta Graph API token for users with Meta Developer Ad Library access.",
+      "editor": "textfield"
     }
   },
   "required": []
