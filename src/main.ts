@@ -7,7 +7,7 @@
  */
 
 import { Actor, log } from 'apify';
-import { gotScraping, CookieJar } from 'crawlee';
+import { gotScraping } from 'crawlee';
 
 // ---------------------------------------------------------------------------
 // TYPE DEFINITIONS
@@ -78,10 +78,22 @@ function computeJazoest(lsd: string): string {
 }
 
 /**
- * Returns exact Meta request headers with synchronized 'www.facebook.com' origin & referer.
+ * Extracts and formats cookie pairs from the HTTP set-cookie response header.
  */
-function getMetaRequestHeaders(userAgent: string, lsdToken: string): Record<string, string> {
-  return {
+function extractCookieHeader(setCookieHeader?: string | string[]): string {
+  if (!setCookieHeader) return '';
+  const cookies = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
+  return cookies
+    .map((c) => c.split(';')[0].trim())
+    .filter(Boolean)
+    .join('; ');
+}
+
+/**
+ * Returns exact Meta request headers with synchronized 'www.facebook.com' origin, referer, and cookies.
+ */
+function getMetaRequestHeaders(userAgent: string, lsdToken: string, cookies?: string): Record<string, string> {
+  const headers: Record<string, string> = {
     'accept': '*/*',
     'accept-language': 'en-US,en;q=0.9',
     'content-type': 'application/x-www-form-urlencoded;charset=UTF-8',
@@ -97,6 +109,12 @@ function getMetaRequestHeaders(userAgent: string, lsdToken: string): Record<stri
     'x-asbd-id': '129477',
     'x-fb-lsd': lsdToken,
   };
+
+  if (cookies) {
+    headers['cookie'] = cookies;
+  }
+
+  return headers;
 }
 
 function parseMetaResponse(rawText: string): any {
@@ -284,15 +302,16 @@ try {
     let hasNextPage = true;
     let pageNumber = 1;
 
-    // Use a persistent residential proxy session & cookie jar for this query target
+    // Use a persistent residential proxy session for this query target
     const proxySessionId = `res_meta_${Math.random().toString(36).substring(2, 9)}`;
     const proxyUrl = proxyConfiguration ? await proxyConfiguration.newUrl(proxySessionId) : undefined;
-    const cookieJar = new CookieJar();
     const userAgent = getRandomUserAgent();
 
-    // 2. Initial Handshake on SAME proxy IP & CookieJar to get LSD token and session cookies
+    // 2. Initial Handshake on SAME proxy IP to get LSD token and session cookies
     log.info('📡 Establishing baseline session with Meta Ad Library (fetching LSD & cookies)...');
     let lsdToken = 'AVrP-default';
+    let sessionCookies = '';
+
     try {
       const sessionRes = await gotScraping({
         url: 'https://www.facebook.com/ads/library/',
@@ -301,11 +320,13 @@ try {
           'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
           'accept-language': 'en-US,en;q=0.9',
         },
-        cookieJar,
         proxyUrl,
         timeout: { request: 20000 },
         retry: { limit: 1 },
       });
+
+      // Capture cookies from handshake
+      sessionCookies = extractCookieHeader(sessionRes.headers['set-cookie']);
 
       const tokenMatch = sessionRes.body.match(/"LSD",\[\],{"token":"([^"]+)"}/) ||
                          sessionRes.body.match(/name="lsd"\s+value="([^"]+)"/);
@@ -350,7 +371,7 @@ try {
         params.append('forward_cursor', forwardCursor);
       }
 
-      const headers = getMetaRequestHeaders(userAgent, lsdToken);
+      const headers = getMetaRequestHeaders(userAgent, lsdToken, sessionCookies);
 
       log.info(`📡 Dispatching request batch #${pageNumber} for "${target.query}" (Target batch size: ${batchSize})...`);
       
@@ -363,13 +384,14 @@ try {
             method: 'POST',
             body: params.toString(),
             headers,
-            cookieJar,
             proxyUrl,
             timeout: { request: 30000 },
             retry: { limit: 0 },
           });
 
           if (response.statusCode === 200) {
+            const newCookies = extractCookieHeader(response.headers['set-cookie']);
+            if (newCookies) sessionCookies = `${sessionCookies}; ${newCookies}`;
             break;
           } else if (response.statusCode === 429) {
             log.warning('Rate limited by Meta (HTTP 429). Rotating residential session and backing off...');
