@@ -2,7 +2,7 @@
   "actorSpecification": 1,
   "name": "meta-ad-library-scraper",
   "title": "Meta Ad Library Scraper (Facebook & Instagram Ads)",
-  "description": "High-speed, cost-efficient scraper for Meta Ad Library. Extract active & inactive ads by keyword or Facebook page, including direct .mp4 video player URLs, images, advertiser info, and reach.",
+  "description": "Cost-efficient, real Meta Ad Library scraper powered by Crawlee PlaywrightCrawler. Extract authentic active & inactive ads by keyword or Facebook page, including direct .mp4 video player URLs, images, advertiser info, and optional Key-Value Store media archiving.",
   "version": "1.0.0",
   "buildTag": "latest",
   "environmentVariables": {},
