@@ -32,7 +32,7 @@ interface ScrapedMetaAd {
   startDate: string;
   endDate: string | null;
   isActive: boolean;
-  snapshotUrl: string; // Direct .mp4 video link or high-res image link
+  snapshotUrl: string;
   mediaType: 'video' | 'image' | 'carousel' | 'unknown';
   videoSources?: {
     hdUrl?: string;
@@ -53,31 +53,23 @@ interface ScrapedMetaAd {
   scrapedAt: string;
 }
 
-// ---------------------------------------------------------------------------
-// ROTATING HEADERS & USER-AGENTS
-// ---------------------------------------------------------------------------
-
 const USER_AGENTS = [
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:130.0) Gecko/20100101 Firefox/130.0',
-  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15',
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36 Edg/129.0.0.0',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
 ];
 
 function getRandomUserAgent(): string {
   return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
 }
 
-function getMetaRequestHeaders(userAgent: string): Record<string, string> {
+function getMetaRequestHeaders(userAgent: string, lsdToken: string): Record<string, string> {
   return {
     'accept': '*/*',
     'accept-language': 'en-US,en;q=0.9',
     'content-type': 'application/x-www-form-urlencoded;charset=UTF-8',
-    'origin': 'https://www.facebook.com',
-    'referer': 'https://www.facebook.com/ads/library/',
-    'sec-ch-ua': '"Chromium";v="128", "Not;A=Brand";v="24", "Google Chrome";v="128"',
+    'origin': 'https://facebook.com',
+    'referer': 'https://facebook.com/ads/library/',
+    'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
     'sec-ch-ua-mobile': '?0',
     'sec-ch-ua-platform': '"Windows"',
     'sec-fetch-dest': 'empty',
@@ -85,13 +77,9 @@ function getMetaRequestHeaders(userAgent: string): Record<string, string> {
     'sec-fetch-site': 'same-origin',
     'user-agent': userAgent,
     'x-asbd-id': '129477',
-    'x-fb-lsd': 'AVrP-example',
+    'x-fb-lsd': lsdToken,
   };
 }
-
-// ---------------------------------------------------------------------------
-// PARSING HELPERS
-// ---------------------------------------------------------------------------
 
 function parseMetaResponse(rawText: string): any {
   let cleanText = rawText.trim();
@@ -157,7 +145,7 @@ function extractAdRecord(rawAd: any): ScrapedMetaAd {
   }
 
   highResImageUrl = imageSources[0] || '';
-  const snapshotUrl = directMp4Url || highResImageUrl || `https://www.facebook.com/ads/library/?id=${archiveId}`;
+  const snapshotUrl = directMp4Url || highResImageUrl || `https://facebook.com/ads/library/?id=${archiveId}`;
 
   let adBody = '';
   if (snapshot.body) {
@@ -239,7 +227,7 @@ try {
   const isActive = (input.is_active || 'ALL').toUpperCase();
   const adType = input.ad_type || 'all';
 
-  const effectiveKeyword = searchKeyword || (pageUrls.length === 0 ? 'running shoes' : '');
+  const effectiveKeyword = searchKeyword || (pageUrls.length === 0 ? 'ai tool creating ugc video ads' : '');
 
   let proxyConfiguration;
   try {
@@ -255,7 +243,6 @@ try {
 
   let totalScraped = 0;
   const pushedAdIds = new Set<string>();
-
   const targets: Array<{ mode: 'page' | 'keyword'; query: string }> = [];
 
   if (pageUrls.length > 0) {
@@ -269,6 +256,22 @@ try {
     targets.push({ mode: 'keyword', query: effectiveKeyword });
   }
 
+  log.info('📡 Establishing baseline encryption token session with Meta components...');
+  let lsdToken = 'AVrP_placeholder';
+  try {
+    const sessionRes = await gotScraping({
+      url: 'https://facebook.com/ads/library/',
+      headers: { 'user-agent': getRandomUserAgent() }
+    });
+    const tokenMatch = sessionRes.body.match(/"LSD",\[\],{"token":"([^"]+)"}/);
+    if (tokenMatch && tokenMatch[1]) {
+      lsdToken = tokenMatch[1];
+      log.info('🔑 Successfully acquired live security hash handshake.');
+    }
+  } catch (e) {
+    log.warning(`Token extraction bypassed: ${(e as Error).message}`);
+  }
+
   for (const target of targets) {
     if (totalScraped >= limit) break;
 
@@ -277,126 +280,108 @@ try {
     let forwardCursor: string | null = null;
     let hasNextPage = true;
     let pageNumber = 1;
-    const sessionId = `session-${Math.random().toString(36).substring(2, 10)}`;
-
-    while (hasNextPage && totalScraped < limit) {
-      const proxySessionId = `res_meta_${Math.random().toString(36).substring(2, 9)}`;
-      const proxyUrl = proxyConfiguration
-        ? await proxyConfiguration.newUrl(proxySessionId)
-        : undefined;
-
-      const userAgent = getRandomUserAgent();
-      const headers = getMetaRequestHeaders(userAgent);
-
-      const remainingLimit = limit - totalScraped;
-      const batchSize = Math.min(30, remainingLimit);
-
-      const params = new URLSearchParams();
-      params.append('active_status', isActive.toLowerCase());
-      params.append('ad_type', adType);
-      params.append('countries[0]', countryCode);
-      params.append('count', String(batchSize));
-      params.append('session_id', sessionId);
-
-      if (target.mode === 'keyword') {
-        params.append('q', target.query);
-        params.append('search_type', 'keyword_unordered');
-      } else {
-        params.append('view_all_page_id', target.query);
-        params.append('search_type', 'page');
-      }
-
-      if (forwardCursor) {
-        params.append('forward_cursor', forwardCursor);
-      }
-
-      log.info(`📡 Dispatching request batch #${pageNumber} for "${target.query}" (Target batch size: ${batchSize})...`);
-
-      let response;
-      let retries = 3;
-      while (retries > 0) {
-        try {
-          response = await gotScraping({
-            url: 'https://www.facebook.com/ads/library/async/search_ads/',
-            method: 'POST',
-            body: params.toString(),
-            headers,
-            proxyUrl,
-            timeout: { request: 30000 },
-            retry: { limit: 0 },
-          });
-
-          if (response.statusCode === 200) {
-            break;
-          } else if (response.statusCode === 429) {
-            log.warning('Rate limited by Meta (HTTP 429). Rotating residential session and backing off...');
-            await new Promise((res) => setTimeout(res, 2000));
-          } else {
-            log.warning(`Meta responded with HTTP ${response.statusCode}. Retrying...`);
-          }
-        } catch (fetchErr) {
-          log.warning(`Connection dropped: ${(fetchErr as Error).message}. Retrying (${retries} attempts left)...`);
-        }
-        retries--;
-        await new Promise((res) => setTimeout(res, 1500));
-      }
-
-      if (!response || response.statusCode !== 200) {
-        log.error(`Failed to retrieve batch from Meta after multiple retries. Ending loop for "${target.query}".`);
-        break;
-      }
-
-      let parsed;
-      try {
-        parsed = parseMetaResponse(response.body);
-      } catch (err) {
-        log.error(`Parse failure: ${(err as Error).message}`);
-        break;
-      }
-
-      const results = parsed?.payload?.results;
-      if (!Array.isArray(results) || results.length === 0) {
-        log.info(`No further ad results found for query "${target.query}".`);
-        break;
-      }
-
-      const extractedBatch: ScrapedMetaAd[] = [];
-      for (const itemGroup of results) {
-        const items = Array.isArray(itemGroup) ? itemGroup : [itemGroup];
-        for (const rawAd of items) {
-          if (!rawAd) continue;
-          const ad = extractAdRecord(rawAd);
-
-          if (!pushedAdIds.has(ad.adArchiveID)) {
-            pushedAdIds.add(ad.adArchiveID);
-            extractedBatch.push(ad);
-            totalScraped++;
-            if (totalScraped >= limit) break;
-          }
-        }
-        if (totalScraped >= limit) break;
-      }
-
-      if (extractedBatch.length > 0) {
-        await Actor.pushData(extractedBatch);
-        log.info(`✅ Pushed ${extractedBatch.length} ads to Apify Dataset (Total: ${totalScraped}/${limit}).`);
-      }
-
-      const forwardCursorNext = parsed?.payload?.forward_cursor || parsed?.payload?.next_cursor;
-      if (forwardCursorNext && forwardCursorNext !== forwardCursor && totalScraped < limit) {
-        forwardCursor = forwardCursorNext;
-        pageNumber++;
-        await new Promise((res) => setTimeout(res, 300));
-      } else {
-        hasNextPage = false;
-      }
-    }
-  }
-
-  log.info(`🎉 Scraping finished! Successfully collected ${totalScraped} ads into the Apify Dataset.`);
+    const sessionId = session-${Math.random().toString(36).substring(2, 10)};
+while (hasNextPage && totalScraped < limit) {
+const proxySessionId = res_meta_${Math.random().toString(36).substring(2, 9)};
+const proxyUrl = proxyConfiguration ? await proxyConfiguration.newUrl(proxySessionId) : undefined;
+const userAgent = getRandomUserAgent();
+const headers = getMetaRequestHeaders(userAgent, lsdToken);
+const remainingLimit = limit - totalScraped;
+const batchSize = Math.min(30, remainingLimit);
+const params = new URLSearchParams();
+params.append('active_status', isActive.toLowerCase());
+params.append('ad_type', adType);
+params.append('countries[0]', countryCode);
+params.append('count', String(batchSize));
+params.append('session_id', sessionId);
+params.append('lsd', lsdToken);
+if (target.mode === 'keyword') {
+params.append('q', target.query);
+params.append('search_type', 'keyword_unordered');
+} else {
+params.append('view_all_page_id', target.query);
+params.append('search_type', 'page');
+}
+if (forwardCursor) {
+params.append('forward_cursor', forwardCursor);
+}
+log.info(📡 Dispatching request batch #${pageNumber} for "${target.query}" (Target batch size: ${batchSize})...);
+let response;
+let retries = 3;
+while (retries > 0) {
+try {
+response = await gotScraping({
+url: 'facebook.com',
+method: 'POST',
+body: params.toString(),
+headers,
+proxyUrl,
+timeout: { request: 30000 },
+retry: { limit: 0 },
+});
+if (response.statusCode === 200) {
+break;
+} else if (response.statusCode === 429) {
+log.warning('Rate limited by Meta (HTTP 429). Rotating residential session...');
+await new Promise((res) => setTimeout(res, 3000));
+} else {
+log.warning(Meta responded with HTTP ${response.statusCode}. Retrying...);
+}
+} catch (fetchErr) {
+log.warning(Connection dropped: ${(fetchErr as Error).message}. Retrying...);
+}
+retries--;
+await new Promise((res) => setTimeout(res, 2000));
+}
+if (!response || response.statusCode !== 200) {
+log.error('Failed to retrieve batch from Meta after multiple retries. Ending loop.');
+break;
+}
+let parsed;
+try {
+parsed = parseMetaResponse(response.body);
+} catch (err) {
+log.error(Parse failure: ${(err as Error).message});
+break;
+}
+const results = parsed?.payload?.results;
+if (!Array.isArray(results) || results.length === 0) {
+log.info(No further ad results found for query "${target.query}");
+break;
+}
+const extractedBatch: ScrapedMetaAd[] = [];
+for (const itemGroup of results) {
+const items = Array.isArray(itemGroup) ? itemGroup : [itemGroup];
+for (const rawAd of items) {
+if (!rawAd) continue;
+const ad = extractAdRecord(rawAd);
+if (!pushedAdIds.has(ad.adArchiveID)) {
+pushedAdIds.add(ad.adArchiveID);
+extractedBatch.push(ad);
+totalScraped++;
+if (totalScraped >= limit) break;
+}
+}
+if (totalScraped >= limit) break;
+}
+if (extractedBatch.length > 0) {
+await Actor.pushData(extractedBatch);
+log.info(✅ Pushed ${extractedBatch.length} ads to Apify Dataset (Total: ${totalScraped}/${limit}).);
+}
+const forwardCursorNext = parsed?.payload?.forward_cursor || parsed?.payload?.next_cursor;
+if (forwardCursorNext && forwardCursorNext !== forwardCursor && totalScraped < limit) {
+forwardCursor = forwardCursorNext;
+pageNumber++;
+await new Promise((res) => setTimeout(res, 1000));
+} else {
+hasNextPage = false;
+}
+}
+}
+log.info(🎉 Scraping finished! Successfully collected ${totalScraped} ads into the Apify Dataset.);
 } catch (error) {
-  log.error(`Fatal error in Meta Ad Library Scraper: ${(error as Error).message}`);
-  throw error;
+log.error(Fatal error in Meta Ad Library Scraper: ${(error as Error).message});
+throw error;
 } finally {
-  await Actor.exit();
+await Actor.exit();
 }
