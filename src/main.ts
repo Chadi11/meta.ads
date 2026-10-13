@@ -1,4 +1,4 @@
-**
+/**
  * Meta Ad Library Scraper - Apify Actor Entry Point
  * 
  * High-performance, low-cost HTTP scraper utilizing Crawlee and the Apify SDK.
