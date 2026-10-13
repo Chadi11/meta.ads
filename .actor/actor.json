@@ -6,7 +6,7 @@
   "version": "1.0.0",
   "buildTag": "latest",
   "environmentVariables": {},
-  "dockerfile": "./Dockerfile",
-  "readme": "./README.md",
-  "input": "input_schema.json"
+  "dockerfile": "../Dockerfile",
+  "readme": "../README.md",
+  "input": "./input_schema.json"
 }
