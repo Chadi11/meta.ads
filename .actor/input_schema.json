@@ -1,0 +1,82 @@
+{
+  "title": "Meta Ad Library Scraper Input Schema",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "search_keyword": {
+      "title": "Search Keyword",
+      "type": "string",
+      "description": "Keywords to search in Meta Ad Library (e.g. 'running shoes', 'ai automation', or brand names).",
+      "editor": "textfield",
+      "prefill": "running shoes"
+    },
+    "page_urls": {
+      "title": "Facebook Page URLs or IDs",
+      "type": "array",
+      "description": "List of Facebook Page URLs (e.g. https://www.facebook.com/Nike) or numeric Page IDs to scrape ads for.",
+      "editor": "stringList",
+      "prefill": []
+    },
+    "limit": {
+      "title": "Maximum Ads to Scrape",
+      "type": "integer",
+      "description": "The maximum number of ads to retrieve. Defaults to 20.",
+      "default": 20,
+      "minimum": 1,
+      "maximum": 50000,
+      "editor": "number"
+    },
+    "country_code": {
+      "title": "Country",
+      "type": "string",
+      "description": "Target country code for ads. Use 'ALL' for worldwide reach.",
+      "default": "ALL",
+      "editor": "select",
+      "enum": ["ALL", "US", "GB", "CA", "AU", "DE", "FR", "ES", "IT", "NL", "BR", "IN", "JP"],
+      "enumTitles": [
+        "Worldwide (ALL)",
+        "United States (US)",
+        "United Kingdom (GB)",
+        "Canada (CA)",
+        "Australia (AU)",
+        "Germany (DE)",
+        "France (FR)",
+        "Spain (ES)",
+        "Italy (IT)",
+        "Netherlands (NL)",
+        "Brazil (BR)",
+        "India (IN)",
+        "Japan (JP)"
+      ]
+    },
+    "is_active": {
+      "title": "Ad Status",
+      "type": "string",
+      "description": "Filter ads by active status or retrieve both.",
+      "default": "ALL",
+      "editor": "select",
+      "enum": ["ALL", "ACTIVE", "INACTIVE"],
+      "enumTitles": ["All Ads (Active & Inactive)", "Active Only", "Inactive Only"]
+    },
+    "ad_type": {
+      "title": "Ad Category",
+      "type": "string",
+      "description": "General commercial ads or political/issue ads.",
+      "default": "all",
+      "editor": "select",
+      "enum": ["all", "political_and_issue_ads"],
+      "enumTitles": ["All Commercial Ads", "Political & Issue Ads"]
+    },
+    "proxyConfiguration": {
+      "title": "Proxy Configuration",
+      "type": "object",
+      "description": "Residential proxies are strongly recommended to bypass Meta's aggressive rate limiting and CAPTCHAs.",
+      "editor": "proxy",
+      "default": {
+        "useApifyProxy": true,
+        "apifyProxyGroups": ["RESIDENTIAL"]
+      }
+    }
+  },
+  "required": []
+}
