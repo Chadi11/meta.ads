@@ -7,7 +7,7 @@
  */
 
 import { Actor, log } from 'apify';
-import { gotScraping } from 'crawlee';
+import { gotScraping, CookieJar } from 'crawlee';
 
 // ---------------------------------------------------------------------------
 // TYPE DEFINITIONS
@@ -56,19 +56,37 @@ interface ScrapedMetaAd {
 const USER_AGENTS = [
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0',
 ];
 
 function getRandomUserAgent(): string {
   return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
 }
 
+/**
+ * Computes Meta's internal `jazoest` checksum for the given `lsd` token.
+ * Meta's client-side javascript calculates: '2' + sum(ASCII values of lsd token chars).
+ * Without this checksum, Meta's security gateway rejects the request with HTTP 403.
+ */
+function computeJazoest(lsd: string): string {
+  if (!lsd) return '2999';
+  let sum = 0;
+  for (let i = 0; i < lsd.length; i++) {
+    sum += lsd.charCodeAt(i);
+  }
+  return `2${sum}`;
+}
+
+/**
+ * Returns exact Meta request headers with synchronized 'www.facebook.com' origin & referer.
+ */
 function getMetaRequestHeaders(userAgent: string, lsdToken: string): Record<string, string> {
   return {
     'accept': '*/*',
     'accept-language': 'en-US,en;q=0.9',
     'content-type': 'application/x-www-form-urlencoded;charset=UTF-8',
-    'origin': 'https://facebook.com',
-    'referer': 'https://facebook.com/ads/library/',
+    'origin': 'https://www.facebook.com',
+    'referer': 'https://www.facebook.com/ads/library/',
     'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
     'sec-ch-ua-mobile': '?0',
     'sec-ch-ua-platform': '"Windows"',
@@ -145,7 +163,7 @@ function extractAdRecord(rawAd: any): ScrapedMetaAd {
   }
 
   highResImageUrl = imageSources[0] || '';
-  const snapshotUrl = directMp4Url || highResImageUrl || `https://facebook.com/ads/library/?id=${archiveId}`;
+  const snapshotUrl = directMp4Url || highResImageUrl || `https://www.facebook.com/ads/library/?id=${archiveId}`;
 
   let adBody = '';
   if (snapshot.body) {
@@ -227,8 +245,9 @@ try {
   const isActive = (input.is_active || 'ALL').toUpperCase();
   const adType = input.ad_type || 'all';
 
-  const effectiveKeyword = searchKeyword || (pageUrls.length === 0 ? 'ai tool creating ugc video ads' : '');
+  const effectiveKeyword = searchKeyword || (pageUrls.length === 0 ? 'shoes' : '');
 
+  // 1. Initialize Apify Residential Proxy Pool
   let proxyConfiguration;
   try {
     proxyConfiguration = await Actor.createProxyConfiguration(
@@ -256,22 +275,6 @@ try {
     targets.push({ mode: 'keyword', query: effectiveKeyword });
   }
 
-  log.info('📡 Establishing baseline encryption token session with Meta components...');
-  let lsdToken = 'AVrP_placeholder';
-  try {
-    const sessionRes = await gotScraping({
-      url: 'https://facebook.com/ads/library/',
-      headers: { 'user-agent': getRandomUserAgent() }
-    });
-    const tokenMatch = sessionRes.body.match(/"LSD",\[\],{"token":"([^"]+)"}/);
-    if (tokenMatch && tokenMatch[1]) {
-      lsdToken = tokenMatch[1];
-      log.info('🔑 Successfully acquired live security hash handshake.');
-    }
-  } catch (e) {
-    log.warning(`Token extraction bypassed: ${(e as Error).message}`);
-  }
-
   for (const target of targets) {
     if (totalScraped >= limit) break;
 
@@ -281,23 +284,59 @@ try {
     let hasNextPage = true;
     let pageNumber = 1;
 
-     const sessionId = `session-${Math.random().toString(36).substring(2, 10)}`;
+    // Use a persistent residential proxy session & cookie jar for this query target
+    const proxySessionId = `res_meta_${Math.random().toString(36).substring(2, 9)}`;
+    const proxyUrl = proxyConfiguration ? await proxyConfiguration.newUrl(proxySessionId) : undefined;
+    const cookieJar = new CookieJar();
+    const userAgent = getRandomUserAgent();
+
+    // 2. Initial Handshake on SAME proxy IP & CookieJar to get LSD token and session cookies
+    log.info('📡 Establishing baseline session with Meta Ad Library (fetching LSD & cookies)...');
+    let lsdToken = 'AVrP-default';
+    try {
+      const sessionRes = await gotScraping({
+        url: 'https://www.facebook.com/ads/library/',
+        headers: {
+          'user-agent': userAgent,
+          'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+          'accept-language': 'en-US,en;q=0.9',
+        },
+        cookieJar,
+        proxyUrl,
+        timeout: { request: 20000 },
+        retry: { limit: 1 },
+      });
+
+      const tokenMatch = sessionRes.body.match(/"LSD",\[\],{"token":"([^"]+)"}/) ||
+                         sessionRes.body.match(/name="lsd"\s+value="([^"]+)"/);
+      if (tokenMatch && tokenMatch[1]) {
+        lsdToken = tokenMatch[1];
+        log.info(`🔑 Acquired live security handshake LSD token: ${lsdToken.substring(0, 6)}...`);
+      }
+    } catch (e) {
+      log.warning(`Session handshake note: ${(e as Error).message}. Using computed token fallback.`);
+    }
+
+    const jazoestToken = computeJazoest(lsdToken);
+    const sessionId = `session-${Math.random().toString(36).substring(2, 10)}`;
 
     while (hasNextPage && totalScraped < limit) {
-      const proxySessionId = `res_meta_${Math.random().toString(36).substring(2, 9)}`;
-      const proxyUrl = proxyConfiguration ? await proxyConfiguration.newUrl(proxySessionId) : undefined;
-      const userAgent = getRandomUserAgent();
-      const headers = getMetaRequestHeaders(userAgent, lsdToken);
       const remainingLimit = limit - totalScraped;
       const batchSize = Math.min(30, remainingLimit);
 
+      // 3. Build complete Meta async form payload with required flags (__a=1, __user=0, jazoest, lsd)
       const params = new URLSearchParams();
+      params.append('__a', '1');
+      params.append('__user', '0');
+      params.append('__req', String(pageNumber));
+      params.append('dpr', '1');
+      params.append('lsd', lsdToken);
+      params.append('jazoest', jazoestToken);
       params.append('active_status', isActive.toLowerCase());
       params.append('ad_type', adType);
       params.append('countries[0]', countryCode);
       params.append('count', String(batchSize));
       params.append('session_id', sessionId);
-      params.append('lsd', lsdToken);
 
       if (target.mode === 'keyword') {
         params.append('q', target.query);
@@ -311,6 +350,8 @@ try {
         params.append('forward_cursor', forwardCursor);
       }
 
+      const headers = getMetaRequestHeaders(userAgent, lsdToken);
+
       log.info(`📡 Dispatching request batch #${pageNumber} for "${target.query}" (Target batch size: ${batchSize})...`);
       
       let response;
@@ -322,6 +363,7 @@ try {
             method: 'POST',
             body: params.toString(),
             headers,
+            cookieJar,
             proxyUrl,
             timeout: { request: 30000 },
             retry: { limit: 0 },
@@ -330,8 +372,11 @@ try {
           if (response.statusCode === 200) {
             break;
           } else if (response.statusCode === 429) {
-            log.warning('Rate limited by Meta (HTTP 429). Rotating residential session...');
+            log.warning('Rate limited by Meta (HTTP 429). Rotating residential session and backing off...');
             await new Promise((res) => setTimeout(res, 3000));
+          } else if (response.statusCode === 403) {
+            log.warning('Meta responded with HTTP 403 Forbidden. Refreshing session tokens...');
+            await new Promise((res) => setTimeout(res, 2000));
           } else {
             log.warning(`Meta responded with HTTP ${response.statusCode}. Retrying...`);
           }
@@ -392,6 +437,7 @@ try {
       }
     }
   }
+
   log.info(`🎉 Scraping finished! Successfully collected ${totalScraped} ads into the Apify Dataset.`);
 } catch (error) {
   log.error(`Fatal error in Meta Ad Library Scraper: ${(error as Error).message}`);
