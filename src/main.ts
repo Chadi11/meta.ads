@@ -318,7 +318,7 @@ try {
       while (retries > 0) {
         try {
           response = await gotScraping({
-            url: 'https://facebook.com',
+            url: 'https://www.facebook.com/ads/library/async/search_ads/',
             method: 'POST',
             body: params.toString(),
             headers,
