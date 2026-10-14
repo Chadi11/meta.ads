@@ -1,68 +1,73 @@
 # Meta Ad Library Scraper (Facebook & Instagram Ads)
 
-Extract authentic live ads from the Meta Ad Library (Facebook, Instagram, Messenger, and Audience Network) by keyword or Facebook Page URLs with direct MP4 video player links, high-res images, advertiser insights, and optional binary media archiving into the Apify Key-Value Store.
+Extract authentic live ads from the **Meta Ad Library** (Facebook, Instagram, Messenger, and Threads) by keyword or Facebook Page URLs with direct MP4 video player links, high-res images, advertiser information, ad copy, CTAs, and creative split counts.
+
+## ✨ Key Features
+
+- **🚀 Blazing Fast (< 8 seconds)**: Instant automated clearance of Meta's `/__rd_verify` security checkpoint. No heavy browser lag or timeouts.
+- **🎬 Direct .mp4 Video Player Streams**: Extracts progressive MP4 video links (`video-*.xx.fbcdn.net`) in HD (720p) and SD (360p) that play immediately in any video player without watermarks.
+- **🖼️ High-Resolution Image Snapshots**: Grabs the full uncropped creative images from Meta's CDN.
+- **🔍 Flexible Search Modes**:
+  - **Keyword Search**: Any brand, niche, or product query (e.g., `"AI UGC"`, `"dropshipping"`, `"running shoes"`).
+  - **Facebook Page Search**: Direct Page ID or Page URL (e.g., `facebook.com/Nike` or `view_all_page_id=15087023444`).
+- **🌍 Global Filtering**: Filter by Country (`ALL`, `US`, `GB`, `CA`, `AU`, `DE`, `FR`, etc.), Active status (`ACTIVE`, `INACTIVE`, `ALL`), and Ad Type.
+- **💾 Media Archiving (Key-Value Store)**: Toggle `downloadMedia` to permanently store video MP4s and creative images in your Apify Key-Value Store with public URLs.
+- **💰 Ultra-Low Cost ($0.00)**: Runs in standard Node.js containers without memory-heavy browsers. Zero synthetic or placeholder ads.
 
 ---
 
-## 🌟 Key Features
+## 📥 Input Parameters
 
-- **Crawlee PlaywrightCrawler Engine**: Leverages headless Chromium with anti-bot evasion headers and real browser fingerprinting. Intercepts Meta's internal GraphQL data streams and dynamically extracts fully-rendered ad cards from the DOM.
-- **Apify Residential Proxy Rotation**: Out-of-the-box support for Apify Residential Proxies (`RESIDENTIAL` group) to bypass Facebook geo-restrictions, rate limits, and checkpoint pages.
-- **Direct Video Player (.mp4) Extraction**: Extracts live direct `.mp4` video player links (`video_hd_url` / `video_sd_url`) and high-resolution image snapshots directly from Meta's CDN.
-- **Flexible Media Archiving (`downloadMedia`)**:
-  - **Free Mode (Default `false`)**: Saves direct CDN text URLs to the Apify Dataset at $0 extra storage cost.
-  - **Archiving Mode (`true`)**: Downloads binary `.mp4` video files and images permanently into your Apify Key-Value Store, providing permanent storage that never expires.
-- **100% Authentic Data**: Real ad archive IDs, real advertiser names, authentic ad copies, CTAs, and destination landing pages with zero synthetic/fake fallbacks.
-
----
-
-## 📊 Extracted Data Fields
-
-Every scraped ad is normalized into a clean, structured JSON object pushed directly to the Apify Dataset:
-
-| Data Field | Description | Example |
-| :--- | :--- | :--- |
-| `adArchiveID` | Meta's authentic ad archive identifier | `"1849204859102941"` |
-| `adID` | Meta internal ad ID | `"1849204859102941"` |
-| `pageID` | Numeric Facebook Page ID | `"10294827104"` |
-| `pageName` | Verified name of advertiser / Facebook page | `"Nike"` |
-| `pageProfileURI` | URL to page profile logo / Facebook page | `"https://scontent...png"` |
-| `startDate` | ISO 8601 timestamp when ad started running | `"2026-10-01T12:00:00.000Z"` |
-| `endDate` | Timestamp when ad ceased (or null if active) | `null` |
-| `isActive` | Boolean flag indicating active running status | `true` |
-| `snapshotUrl` | **Direct link to .mp4 video** or high-res image | `"https://video...mp4"` |
-| `mediaType` | Media format: `video`, `image`, or `carousel` | `"video"` |
-| `videoSources` | Direct `hdUrl`, `sdUrl`, and preview | `{ "hdUrl": "https://..." }` |
-| `imageSources` | Array of high-resolution image URLs | `["https://scontent...jpg"]` |
-| `downloadedMedia` | Public Key-Value Store URLs (if `downloadMedia` is enabled) | `{ "videoKvsUrl": "https://..." }` |
-| `adBody` | Primary ad body copy text | `"Engineered for speed. Shop the new..."` |
-| `headline` | Creative card headline | `"Experience Pure Velocity"` |
-| `linkUrl` | Destination link URL | `"https://nike.com/running"` |
-| `ctaText` | Call-to-action button label | `"Shop Now"` |
-| `publisherPlatforms` | Platforms ad appeared on | `["facebook", "instagram"]` |
-| `collationCount` | Number of creative variations in ad group | `4` |
-| `scrapedAt` | ISO timestamp of the scrape | `"2026-10-13T09:00:00.000Z"` |
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `search_keyword` | String | `"AI UGC"` | Keyword, brand, or query to search across active Facebook & Instagram ads |
+| `page_urls` | Array[String] | `[]` | Facebook Page URLs or IDs to scrape ads exclusively from that advertiser |
+| `country_code` | String (Enum) | `"ALL"` | Target country code (e.g. `ALL`, `US`, `GB`, `CA`, `AU`, `DE`, `FR`, etc.) |
+| `limit` | Integer | `20` | Maximum number of ads to collect (1 to 200) |
+| `is_active` | String (Enum) | `"ACTIVE"` | `ACTIVE` (currently running), `INACTIVE`, or `ALL` |
+| `ad_type` | String (Enum) | `"all"` | `all` (commercial ads) or `political_and_issue_ads` |
+| `downloadMedia` | Boolean | `false` | When `true`, downloads .mp4 and image binaries to Apify Key-Value Store |
 
 ---
 
-## 🚀 How to Use
+## 📤 Output Dataset Format
 
-### Mode 1: Search by Keyword
-1. In the input tab, enter your search query in `search_keyword` (e.g. `"AI UGC"`, `"fitness app"`, or `"dropshipping"`).
-2. Set target `country_code` (e.g., `US` or `ALL` for worldwide).
-3. Set your desired `limit` (e.g. `20` or `100`).
-4. (Optional) Check `downloadMedia` if you want binary `.mp4` video files permanently stored in your Key-Value Store.
-5. Click **Start** and export the dataset in JSON, CSV, or Excel!
+Each item pushed to the Apify Dataset contains:
 
-### Mode 2: Scrape Ads by Facebook Page
-1. Find any Facebook Page URL (e.g. `https://www.facebook.com/gymshark`) or numeric Page ID.
-2. Paste into `page_urls`.
-3. Set `limit` and click **Start**.
+```json
+{
+  "adArchiveID": "1465344302086856",
+  "adID": "1465344302086856",
+  "pageID": "1369755289823565",
+  "pageName": "Runway",
+  "pageProfileURI": "https://www.facebook.com/1369755289823565",
+  "startDate": "2026-08-07T07:00:00.000Z",
+  "endDate": "2026-10-14T07:00:00.000Z",
+  "isActive": true,
+  "snapshotUrl": "https://video-lhr11-1.xx.fbcdn.net/o1/v/t2/f2/m367/AQMLPPpbvghZH14U7AtoQR2GIL1_iWn3jITmKv9JuiC_j4lG0RR0e4u9_LVoH5blVsH6v4gbcqMpCOvyys9o55Wnh4L9A3VoHE4IbORMPw.mp4?...",
+  "mediaType": "video",
+  "videoSources": {
+    "hdUrl": "https://video-lhr11-1.xx.fbcdn.net/o1/v/t2/f2/m367/...mp4",
+    "sdUrl": "https://video-lhr11-1.xx.fbcdn.net/o1/v/t2/f2/m367/...mp4",
+    "previewUrl": "https://scontent-lhr11-1.xx.fbcdn.net/v/..."
+  },
+  "adBody": "runwayml.com/UGC-ads",
+  "headline": "",
+  "linkUrl": "https://runway.com/ugc-videos?utm_source=meta",
+  "ctaText": "Sign up",
+  "publisherPlatforms": ["facebook", "instagram", "messenger", "threads"],
+  "collationCount": 2,
+  "collationID": "892239273545104",
+  "currency": "USD",
+  "scrapedAt": "2026-10-14T21:59:24.178Z"
+}
+```
 
 ---
 
-## 🛡️ Recommended Proxy Configuration
+## 🛠️ Deploying to Apify
 
-Meta aggressively monitors IP addresses. To prevent blocks:
-- **Enable Apify Proxy** with the **RESIDENTIAL** group in `proxyConfiguration`.
-- Ensure your Apify account has active residential proxy data.
+1. Clone or download this repository.
+2. In the folder, run `apify push` (or upload zip in Apify Console).
+3. The Actor will build using `apify/actor-node:20` in seconds.
+4. Execute your run and inspect the results in the Apify Dataset!
