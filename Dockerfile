@@ -1,13 +1,13 @@
-FROM apify/actor-node-playwright:20
+FROM apify/actor-node:20
 
 # Copy dependency manifests
 COPY package*.json ./
 
-# Install dependencies including Playwright and Crawlee
+# Install dependencies rapidly
 RUN npm --quiet set progress=false \
- && npm install --no-optional
+ && npm install --omit=dev --no-optional
 
-# Copy source files
+# Copy application source files
 COPY . ./
 
 # Build TypeScript
